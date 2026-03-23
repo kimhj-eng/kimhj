@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daily 감정일기 📓</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📓</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap" rel="stylesheet">
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Noto Sans KR', sans-serif; }
+  input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  input[type=number] { -moz-appearance: textfield; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes shakeX {
+    0%,100%{transform:translateX(0)} 20%{transform:translateX(-12px)}
+    40%{transform:translateX(10px)} 60%{transform:translateX(-8px)} 80%{transform:translateX(6px)}
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+// ─── Constants ───
+const EMOTIONS = [
+  { id: "happy", emoji: "😊", label: "기쁨", color: "#FFD93D", bg: "#FFF8E1" },
+  { id: "sad", emoji: "😢", label: "슬픔", color: "#64B5F6", bg: "#E3F2FD" },
+  { id: "excited", emoji: "🤩", label: "신남", color: "#CE93D8", bg: "#F3E5F5" },
+  { id: "calm", emoji: "😌", label: "편안", color: "#81C784", bg: "#E8F5E9" },
+  { id: "angry", emoji: "😠", label: "화남", color: "#EF5350", bg: "#FFEBEE" },
+  { id: "anxious", emoji: "😰", label: "불안", color: "#FFB74D", bg: "#FFF3E0" },
+  { id: "tired", emoji: "😴", label: "피곤", color: "#90A4AE", bg: "#ECEFF1" },
+  { id: "other", emoji: "✏️", label: "기타", color: "#A1887F", bg: "#EFEBE9", isOther: true },
+];
+
+const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
+
+function getToday() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function formatDate(str) {
+  if (!str) return "";
+  const d = new Date(str);
+  return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 (${WEEKDAYS[d.getDay()]})`;
+}
+
+function shortDate(str) {
+  if (!str) return "";
+  const d = new Date(str);
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+}
+
+function getEmotionLabel(entry) {
+  if (!entry) return "";
+  const emo = EMOTIONS.find((e) => e.id === entry.emotion);
+  if (entry.emotion === "other" && entry.customEmotion) return entry.customEmotion;
+  return emo?.label || "";
+}
+
+// ─── Storage ───
+const STORAGE_KEY = "emotion-diary-data";
+const STUDENTS_KEY = "emotion-diary-students";
+
+function loadEntries() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); }
+  catch { return []; }
+}
+function saveEntries(entries) { localStorage.setItem(STORAGE_KEY, JSON.stringify(entries)); }
+function loadStudents() {
+  try { return JSON.parse(localStorage.getItem(STUDENTS_KEY) || "[]"); }
+  catch { return []; }
+}
+function saveStudents(list) { localStorage.setItem(STUDENTS_KEY, JSON.stringify(list)); }
+
+// ─── Password ───
+const TEACHER_PASSWORD = "1234";
+const PW_STORAGE_KEY = "emotion-diary-teacher-pw";
+function getTeacherPassword() {
+  try { return localStorage.getItem(PW_STORAGE_KEY) || TEACHER_PASSWORD; }
+  catch { return TEACHER_PASSWORD; }
+}
+function setTeacherPassword(pw) { localStorage.setItem(PW_STORAGE_KEY, pw); }
+
+// ─── Print ───
+function printDiary(entry) {
+  const emo = EMOTIONS.find((e) => e.id === entry.emotion);
+  const d = new Date(entry.date);
+  const emotionLabel = entry.emotion === "other" && entry.customEmotion ? entry.customEmotion : (emo?.label || "");
+  const win = window.open("", "_blank", "width=800,height=600");
+  if (!win) return;
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>감정일기</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Noto Sans KR',sans-serif;background:#FFC107;display:flex;justify-content:center;padding:24px}
+.card{background:#fff;border-radius:24px;width:520px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.12)}
+.header{background:#FFC107;padding:28px 32px 18px;text-align:center}
+.header h1{font-size:32px;font-weight:900;color:#333}
+.header .sub{font-size:14px;color:#555;margin-top:4px}
+.meta{background:#26A69A;color:#fff;padding:12px 32px;display:flex;justify-content:space-between;align-items:center;font-size:15px;font-weight:700}
+.emotion-badge{display:flex;align-items:center;gap:8px;padding:16px 32px;border-bottom:2px solid #eee}
+.emotion-badge .emoji{font-size:40px}
+.emotion-badge .label{font-size:18px;font-weight:700;color:#333}
+.student-info{padding:12px 32px;border-bottom:2px solid #eee;font-size:14px;color:#555;display:flex;gap:24px}
+.content{padding:24px 32px;min-height:200px;font-size:15px;line-height:1.9;color:#333;white-space:pre-wrap}
+.footer{padding:12px 32px;border-top:2px solid #eee;text-align:center;font-size:12px;color:#aaa}
+@media print{body{background:#fff;padding:0}.card{box-shadow:none;width:100%}}
+</style></head><body>
+<div class="card">
+<div class="header"><h1>Daily 감정일기 📓</h1><div class="sub">오늘 나의 감정을 일기로 표현해 봅시다.</div></div>
+<div class="meta"><span>${d.getMonth()+1}월 ${d.getDate()}일 ${WEEKDAYS[d.getDay()]}요일</span></div>
+<div class="student-info"><span>번호: ${entry.number || "-"}</span><span>이름: ${entry.name || "-"}</span></div>
+<div class="emotion-badge"><span class="emoji">${emo?.emoji||"😊"}</span><span class="label">${emotionLabel}</span></div>
+<div class="content">${entry.text || ""}</div>
+<div class="footer">감정일기 웹앱</div>
+</div>
+<script>window.onload=()=>{window.print()}<\/script>
+</body></html>`);
+  win.document.close();
+}
+
+// ══════════════════════════════════════
+// STUDENT VIEW
+// ══════════════════════════════════════
+function StudentView({ onSwitchToTeacher }) {
+  const [step, setStep] = useState(0);
+  const [name, setName] = useState("");
+  const [number, setNumber] = useState("");
+  const [date, setDate] = useState(getToday());
+  const [emotion, setEmotion] = useState(null);
+  const [customEmotion, setCustomEmotion] = useState("");
+  const [showCustomInput, setShowCustomInput] = useState(false);
+  const [text, setText] = useState("");
+  const [saved, setSaved] = useState(null);
+  const textRef = useRef(null);
+
+  function handleSave() {
+    const entry = {
+      id: Date.now().toString(),
+      name, number, date, emotion, text,
+      customEmotion: emotion === "other" ? customEmotion : "",
+      createdAt: new Date().toISOString(),
+    };
+    const entries = loadEntries();
+    entries.push(entry);
+    saveEntries(entries);
+    const students = loadStudents();
+    if (!students.find((s) => s.number === number && s.name === name)) {
+      students.push({ number, name });
+      students.sort((a, b) => Number(a.number) - Number(b.number));
+      saveStudents(students);
+    }
+    setSaved(entry);
+    setStep(3);
+  }
+
+  function reset() {
+    setStep(0); setName(""); setNumber(""); setDate(getToday());
+    setEmotion(null); setCustomEmotion(""); setShowCustomInput(false);
+    setText(""); setSaved(null);
+  }
+
+  const emo = EMOTIONS.find((e) => e.id === emotion);
+  const displayLabel = emotion === "other" && customEmotion ? customEmotion : emo?.label;
+
+  return (
+    <div style={{ minHeight: "100vh", background: "linear-gradient(135deg, #FFF8E1 0%, #FFECB3 100%)", display: "flex", flexDirection: "column", alignItems: "center", padding: "20px 16px" }}>
+      {/* Header */}
+      <div style={{ textAlign: "center", marginBottom: 24 }}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: "#FF6F00", letterSpacing: 2, textTransform: "uppercase" }}>Daily</div>
+        <h1 style={{ fontSize: 36, fontWeight: 900, color: "#333", margin: "2px 0 4px" }}>감정일기 📓</h1>
+        <div style={{ display: "flex", gap: 6, justifyContent: "center", marginTop: 8 }}>
+          {EMOTIONS.map((e) => <span key={e.id} style={{ fontSize: 22 }}>{e.emoji}</span>)}
+        </div>
+      </div>
+
+      {/* Card */}
+      <div style={{ background: "#fff", borderRadius: 24, width: "100%", maxWidth: 480, boxShadow: "0 12px 40px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.04)", overflow: "hidden" }}>
+        <div style={{ background: "linear-gradient(135deg, #26A69A, #2bbbad)", padding: "16px 24px", color: "#fff", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontWeight: 700, fontSize: 15 }}>오늘 나의 감정을 일기로 표현해 봅시다.</span>
+          <span style={{ fontSize: 13, opacity: 0.9 }}>{formatDate(date)}</span>
+        </div>
+
+        <div style={{ padding: "24px" }}>
+          {/* Step 0: Info */}
+          {step === 0 && (
+            <div style={{ animation: "fadeIn .3s ease" }}>
+              <h2 style={{ fontSize: 20, fontWeight: 800, marginBottom: 20, color: "#333" }}>학생 정보를 입력하세요</h2>
+              <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: 13, fontWeight: 700, color: "#666", display: "block", marginBottom: 6 }}>번호</label>
+                  <input type="number" value={number} onChange={(e) => setNumber(e.target.value)} placeholder="예: 1"
+                    style={{ width: "100%", padding: "12px 16px", borderRadius: 12, border: "2px solid #E0E0E0", fontSize: 16, outline: "none", transition: "border .2s" }}
+                    onFocus={(e) => e.target.style.borderColor = "#26A69A"} onBlur={(e) => e.target.style.borderColor = "#E0E0E0"} />
+                </div>
+                <div style={{ flex: 2 }}>
+                  <label style={{ fontSize: 13, fontWeight: 700, color: "#666", display: "block", marginBottom: 6 }}>이름</label>
+                  <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="예: 홍길동"
+                    style={{ width: "100%", padding: "12px 16px", borderRadius: 12, border: "2px solid #E0E0E0", fontSize: 16, outline: "none", transition: "border .2s" }}
+                    onFocus={(e) => e.target.style.borderColor = "#26A69A"} onBlur={(e) => e.target.style.borderColor = "#E0E0E0"} />
+                </div>
+              </div>
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ fontSize: 13, fontWeight: 700, color: "#666", display: "block", marginBottom: 6 }}>날짜</label>
+                <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+                  style={{ width: "100%", padding: "12px 16px", borderRadius: 12, border: "2px solid #E0E0E0", fontSize: 16, outline: "none" }} />
+              </div>
+              <button onClick={() => { if (name.trim() && number.trim()) setStep(1); }} disabled={!name.trim() || !number.trim()}
+                style={{ width: "100%", padding: "14px", borderRadius: 14, border: "none", background: name.trim() && number.trim() ? "linear-gradient(135deg, #26A69A, #2bbbad)" : "#ccc", color: "#fff", fontSize: 16, fontWeight: 700, cursor: name.trim() && number.trim() ? "pointer" : "default", transition: "all .2s" }}>
+                다음으로 →
+              </button>
+            </div>
+          )}
+
+          {/* Step 1: Emotion */}
+          {step === 1 && (
+            <div style={{ animation: "fadeIn .3s ease" }}>
+              <h2 style={{ fontSize: 20, fontWeight: 800, marginBottom: 6, color: "#333" }}>오늘의 감정은?</h2>
+              <p style={{ fontSize: 14, color: "#888", marginBottom: 20 }}>지금 느끼는 감정을 골라주세요</p>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+                {EMOTIONS.map((e) => (
+                  <button key={e.id}
+                    onClick={() => {
+                      setEmotion(e.id);
+                      if (e.isOther) { setShowCustomInput(true); }
+                      else { setShowCustomInput(false); setCustomEmotion(""); setTimeout(() => setStep(2), 300); }
+                    }}
+                    style={{
+                      background: emotion === e.id ? e.bg : "#F5F5F5",
+                      border: emotion === e.id ? `3px solid ${e.color}` : "3px solid transparent",
+                      borderRadius: 16, padding: "16px 8px", cursor: "pointer",
+                      display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
+                      transition: "all .2s", transform: emotion === e.id ? "scale(1.05)" : "scale(1)",
+                    }}>
+                    <span style={{ fontSize: 36 }}>{e.emoji}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "#555" }}>{e.label}</span>
+                  </button>
+                ))}
+              </div>
+              {showCustomInput && (
+                <div style={{ marginTop: 16, animation: "fadeIn .2s ease" }}>
+                  <label style={{ fontSize: 13, fontWeight: 700, color: "#666", display: "block", marginBottom: 6 }}>어떤 감정인지 직접 적어주세요</label>
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <input type="text" value={customEmotion} onChange={(e) => setCustomEmotion(e.target.value)}
+                      placeholder="예: 설렘, 외로움, 후회..." autoFocus
+                      style={{ flex: 1, padding: "12px 16px", borderRadius: 12, border: "2px solid #A1887F", fontSize: 15, outline: "none" }}
+                      onKeyDown={(e) => { if (e.key === "Enter" && customEmotion.trim()) setStep(2); }} />
+                    <button onClick={() => { if (customEmotion.trim()) setStep(2); }} disabled={!customEmotion.trim()}
+                      style={{ padding: "12px 20px", borderRadius: 12, border: "none", background: customEmotion.trim() ? "linear-gradient(135deg, #A1887F, #8D6E63)" : "#ccc", color: "#fff", fontWeight: 700, fontSize: 14, cursor: customEmotion.trim() ? "pointer" : "default" }}>
+                      확인
+                    </button>
+                  </div>
+                </div>
+              )}
+              <button onClick={() => { setStep(0); setShowCustomInput(false); }}
+                style={{ marginTop: 16, background: "none", border: "none", color: "#999", fontSize: 14, cursor: "pointer" }}>← 이전</button>
+            </div>
+          )}
+
+          {/* Step 2: Write */}
+          {step === 2 && (
+            <div style={{ animation: "fadeIn .3s ease" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+                <button onClick={() => setStep(1)} style={{ background: emo?.bg || "#f5f5f5", border: `2px solid ${emo?.color || "#ccc"}`, borderRadius: 12, padding: "8px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: 24 }}>{emo?.emoji}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "#555" }}>{displayLabel}</span>
+                </button>
+                <div style={{ fontSize: 14, color: "#888" }}>{number}번 {name}</div>
+              </div>
+              <textarea ref={textRef} value={text} onChange={(e) => setText(e.target.value)}
+                placeholder="오늘 있었던 일과 느낀 감정을 자유롭게 적어보세요..."
+                style={{ width: "100%", minHeight: 220, padding: "16px", borderRadius: 16, border: "2px solid #E0E0E0", fontSize: 15, lineHeight: 1.8, outline: "none", resize: "vertical", transition: "border .2s" }}
+                onFocus={(e) => e.target.style.borderColor = "#26A69A"} onBlur={(e) => e.target.style.borderColor = "#E0E0E0"} autoFocus />
+              <div style={{ fontSize: 12, color: "#bbb", textAlign: "right", marginTop: 4 }}>{text.length}자</div>
+              <button onClick={handleSave} disabled={!text.trim()}
+                style={{ width: "100%", padding: "14px", borderRadius: 14, border: "none", background: text.trim() ? "linear-gradient(135deg, #FF6F00, #FFA000)" : "#ccc", color: "#fff", fontSize: 16, fontWeight: 700, cursor: text.trim() ? "pointer" : "default", marginTop: 12, transition: "all .2s" }}>
+                일기 저장하기 ✨
+              </button>
+            </div>
+          )}
+
+          {/* Step 3: Done */}
+          {step === 3 && saved && (
+            <div style={{ textAlign: "center", animation: "fadeIn .3s ease", padding: "20px 0" }}>
+              <div style={{ fontSize: 64, marginBottom: 12 }}>🎉</div>
+              <h2 style={{ fontSize: 22, fontWeight: 800, color: "#333", marginBottom: 8 }}>일기가 저장되었어요!</h2>
+              <p style={{ fontSize: 14, color: "#888", marginBottom: 24 }}>{formatDate(saved.date)} · {saved.emotion === "other" && saved.customEmotion ? saved.customEmotion : emo?.label} {emo?.emoji}</p>
+              <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+                <button onClick={() => printDiary(saved)} style={{ padding: "12px 24px", borderRadius: 12, border: "2px solid #26A69A", background: "#fff", color: "#26A69A", fontWeight: 700, cursor: "pointer", fontSize: 14 }}>🖨 인쇄 / PDF</button>
+                <button onClick={reset} style={{ padding: "12px 24px", borderRadius: 12, border: "none", background: "linear-gradient(135deg, #26A69A, #2bbbad)", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 14 }}>✏️ 새 일기 쓰기</button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <button onClick={onSwitchToTeacher}
+        style={{ marginTop: 32, background: "rgba(0,0,0,0.06)", border: "none", borderRadius: 12, padding: "10px 20px", color: "#888", fontSize: 13, cursor: "pointer" }}>
+        🔐 교사 모드
+      </button>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════
+// TEACHER DASHBOARD
+// ══════════════════════════════════════
+function TeacherView({ onBack }) {
+  const [entries, setEntries] = useState([]);
+  const [students, setStudents] = useState([]);
+  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [selectedEntry, setSelectedEntry] = useState(null);
+  const [filterDate, setFilterDate] = useState("");
+  const [tab, setTab] = useState("overview");
+  const [showPwChange, setShowPwChange] = useState(false);
+  const [newPw, setNewPw] = useState("");
+  const [pwMsg, setPwMsg] = useState("");
+
+  useEffect(() => { setEntries(loadEntries()); setStudents(loadStudents()); }, []);
+
+  const allDates = [...new Set(entries.map((e) => e.date))].sort().reverse();
+  const filteredEntries = filterDate ? entries.filter((e) => e.date === filterDate) : entries;
+
+  const studentEntries = selectedStudent
+    ? entries.filter((e) => e.number === selectedStudent.number && e.name === selectedStudent.name).sort((a, b) => b.date.localeCompare(a.date))
+    : [];
+
+  function emotionStats(entryList) {
+    const counts = {};
+    entryList.forEach((e) => { counts[e.emotion] = (counts[e.emotion] || 0) + 1; });
+    return EMOTIONS.map((em) => ({ ...em, count: counts[em.id] || 0 })).filter((em) => em.count > 0).sort((a, b) => b.count - a.count);
+  }
+
+  function openStudent(s) { setSelectedStudent(s); setSelectedEntry(null); setTab("student"); }
+  function openEntry(e) { setSelectedEntry(e); setTab("entry"); }
+
+  return (
+    <div style={{ minHeight: "100vh", background: "linear-gradient(135deg, #ECEFF1 0%, #CFD8DC 100%)", padding: "20px 16px" }}>
+      {/* Header */}
+      <div style={{ maxWidth: 900, margin: "0 auto 20px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+        <div>
+          <h1 style={{ fontSize: 24, fontWeight: 900, color: "#333" }}>📊 감정일기 교사 대시보드</h1>
+          <p style={{ fontSize: 13, color: "#888", marginTop: 2 }}>전체 학생 {students.length}명 · 일기 {entries.length}건</p>
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <button onClick={() => setShowPwChange(!showPwChange)} style={{ padding: "8px 16px", borderRadius: 10, border: "2px solid #FF8A65", background: "#fff", color: "#E64A19", fontWeight: 700, cursor: "pointer", fontSize: 13 }}>🔑 비밀번호 변경</button>
+          <button onClick={onBack} style={{ padding: "8px 16px", borderRadius: 10, border: "2px solid #90A4AE", background: "#fff", color: "#546E7A", fontWeight: 700, cursor: "pointer", fontSize: 13 }}>← 학생 모드</button>
+        </div>
+      </div>
+
+      {/* Password change */}
+      {showPwChange && (
+        <div style={{ maxWidth: 900, margin: "0 auto 16px", background: "#FFF3E0", borderRadius: 14, padding: "16px 20px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: "#E64A19" }}>새 비밀번호:</span>
+          <input type="password" value={newPw} onChange={(e) => { setNewPw(e.target.value); setPwMsg(""); }} placeholder="새 비밀번호 입력"
+            style={{ padding: "8px 14px", borderRadius: 10, border: "2px solid #FFAB91", fontSize: 14, outline: "none", letterSpacing: 2, width: 160 }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && newPw.trim()) {
+                setTeacherPassword(newPw.trim()); setPwMsg("변경 완료!"); setNewPw("");
+                setTimeout(() => { setPwMsg(""); setShowPwChange(false); }, 1500);
+              }
+            }} />
+          <button onClick={() => {
+            if (newPw.trim()) {
+              setTeacherPassword(newPw.trim()); setPwMsg("변경 완료!"); setNewPw("");
+              setTimeout(() => { setPwMsg(""); setShowPwChange(false); }, 1500);
+            }
+          }} disabled={!newPw.trim()} style={{ padding: "8px 16px", borderRadius: 10, border: "none", background: newPw.trim() ? "#E64A19" : "#ccc", color: "#fff", fontWeight: 700, fontSize: 13, cursor: newPw.trim() ? "pointer" : "default" }}>변경</button>
+          {pwMsg && <span style={{ fontSize: 13, fontWeight: 700, color: "#2E7D32" }}>{pwMsg}</span>}
+        </div>
+      )}
+
+      <div style={{ maxWidth: 900, margin: "0 auto" }}>
+        {/* Breadcrumb */}
+        {tab !== "overview" && (
+          <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 16, fontSize: 13, color: "#888" }}>
+            <span onClick={() => { setTab("overview"); setSelectedStudent(null); setSelectedEntry(null); }} style={{ cursor: "pointer", color: "#26A69A", fontWeight: 700 }}>전체보기</span>
+            {selectedStudent && (
+              <><span>/</span>
+              <span onClick={() => { setTab("student"); setSelectedEntry(null); }} style={{ cursor: tab === "entry" ? "pointer" : "default", color: tab === "entry" ? "#26A69A" : "#555", fontWeight: 700 }}>
+                {selectedStudent.number}번 {selectedStudent.name}
+              </span></>
+            )}
+            {selectedEntry && (
+              <><span>/</span><span style={{ color: "#555", fontWeight: 700 }}>{formatDate(selectedEntry.date)}</span></>
+            )}
+          </div>
+        )}
+
+        {/* Overview */}
+        {tab === "overview" && (
+          <div>
+            {/* Date filter */}
+            <div style={{ background: "#fff", borderRadius: 16, padding: "16px 20px", marginBottom: 16, boxShadow: "0 2px 12px rgba(0,0,0,0.04)", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: "#555" }}>날짜 필터:</span>
+              <button onClick={() => setFilterDate("")} style={{ padding: "6px 14px", borderRadius: 8, border: !filterDate ? "2px solid #26A69A" : "2px solid #E0E0E0", background: !filterDate ? "#E0F2F1" : "#fff", color: !filterDate ? "#26A69A" : "#888", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>전체</button>
+              {allDates.slice(0, 10).map((d) => (
+                <button key={d} onClick={() => setFilterDate(d)} style={{ padding: "6px 14px", borderRadius: 8, border: filterDate === d ? "2px solid #26A69A" : "2px solid #E0E0E0", background: filterDate === d ? "#E0F2F1" : "#fff", color: filterDate === d ? "#26A69A" : "#888", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{shortDate(d)}</button>
+              ))}
+            </div>
+
+            {/* Emotion summary */}
+            {filteredEntries.length > 0 && (
+              <div style={{ background: "#fff", borderRadius: 16, padding: "16px 20px", marginBottom: 16, boxShadow: "0 2px 12px rgba(0,0,0,0.04)" }}>
+                <h3 style={{ fontSize: 14, fontWeight: 800, color: "#555", marginBottom: 12 }}>감정 분포</h3>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {emotionStats(filteredEntries).map((em) => (
+                    <div key={em.id} style={{ background: em.bg, border: `2px solid ${em.color}`, borderRadius: 12, padding: "8px 14px", display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ fontSize: 20 }}>{em.emoji}</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: "#555" }}>{em.label}</span>
+                      <span style={{ background: em.color, color: "#fff", borderRadius: 8, padding: "2px 8px", fontSize: 12, fontWeight: 800, marginLeft: 2 }}>{em.count}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Spreadsheet */}
+            <div style={{ background: "#fff", borderRadius: 16, overflow: "hidden", boxShadow: "0 2px 12px rgba(0,0,0,0.04)" }}>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+                  <thead>
+                    <tr style={{ background: "#37474F", color: "#fff" }}>
+                      <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: 700, position: "sticky", left: 0, background: "#37474F", zIndex: 2, minWidth: 110 }}>번호 / 이름</th>
+                      {(filterDate ? [filterDate] : allDates.slice(0, 14)).map((d) => (
+                        <th key={d} style={{ padding: "12px 10px", textAlign: "center", fontWeight: 700, minWidth: 70, whiteSpace: "nowrap" }}>{shortDate(d)}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {students.length === 0 ? (
+                      <tr><td colSpan={15} style={{ padding: 40, textAlign: "center", color: "#bbb" }}>아직 작성된 일기가 없습니다</td></tr>
+                    ) : students.map((s, i) => (
+                      <tr key={i} style={{ borderBottom: "1px solid #ECEFF1", background: i % 2 === 0 ? "#fff" : "#FAFAFA" }}>
+                        <td style={{ padding: "10px 16px", fontWeight: 700, position: "sticky", left: 0, background: i % 2 === 0 ? "#fff" : "#FAFAFA", zIndex: 1, cursor: "pointer", color: "#26A69A", whiteSpace: "nowrap" }}
+                          onClick={() => openStudent(s)}>
+                          {s.number}번 {s.name}
+                        </td>
+                        {(filterDate ? [filterDate] : allDates.slice(0, 14)).map((d) => {
+                          const entry = entries.find((e) => e.date === d && e.number === s.number && e.name === s.name);
+                          const emo = entry ? EMOTIONS.find((em) => em.id === entry.emotion) : null;
+                          return (
+                            <td key={d} style={{ textAlign: "center", padding: "8px 4px" }}>
+                              {entry ? (
+                                <button onClick={() => openEntry(entry)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 24, transition: "transform .15s" }}
+                                  onMouseEnter={(e) => e.target.style.transform = "scale(1.3)"} onMouseLeave={(e) => e.target.style.transform = "scale(1)"}
+                                  title={`${getEmotionLabel(entry)}: ${entry.text?.slice(0, 30)}...`}>
+                                  {emo?.emoji || "📝"}
+                                </button>
+                              ) : <span style={{ color: "#ddd" }}>-</span>}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Student detail */}
+        {tab === "student" && selectedStudent && (
+          <div>
+            <div style={{ background: "#fff", borderRadius: 16, padding: "24px", marginBottom: 16, boxShadow: "0 2px 12px rgba(0,0,0,0.04)" }}>
+              <h2 style={{ fontSize: 20, fontWeight: 800, color: "#333" }}>{selectedStudent.number}번 {selectedStudent.name}</h2>
+              <p style={{ fontSize: 14, color: "#888", marginTop: 4 }}>총 {studentEntries.length}건의 일기</p>
+              {studentEntries.length > 0 && (
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 12 }}>
+                  {emotionStats(studentEntries).map((em) => (
+                    <span key={em.id} style={{ background: em.bg, borderRadius: 8, padding: "4px 10px", fontSize: 13, fontWeight: 700, color: "#555" }}>{em.emoji} {em.count}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+            {studentEntries.map((e) => {
+              const emo = EMOTIONS.find((em) => em.id === e.emotion);
+              return (
+                <div key={e.id} onClick={() => openEntry(e)} style={{ background: "#fff", borderRadius: 16, padding: "16px 20px", marginBottom: 10, boxShadow: "0 2px 8px rgba(0,0,0,0.03)", cursor: "pointer", display: "flex", alignItems: "center", gap: 14, transition: "box-shadow .2s", borderLeft: `4px solid ${emo?.color || "#ccc"}` }}
+                  onMouseEnter={(ev) => ev.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.08)"} onMouseLeave={(ev) => ev.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.03)"}>
+                  <span style={{ fontSize: 32 }}>{emo?.emoji}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "#333" }}>{formatDate(e.date)}</div>
+                    <div style={{ fontSize: 13, color: "#888", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.text}</div>
+                  </div>
+                  <span style={{ fontSize: 18, color: "#ccc" }}>→</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Single entry */}
+        {tab === "entry" && selectedEntry && (() => {
+          const emo = EMOTIONS.find((em) => em.id === selectedEntry.emotion);
+          return (
+            <div style={{ background: "#fff", borderRadius: 20, overflow: "hidden", boxShadow: "0 4px 20px rgba(0,0,0,0.06)" }}>
+              <div style={{ background: `linear-gradient(135deg, ${emo?.color || "#999"}44, ${emo?.color || "#999"}22)`, padding: "24px", display: "flex", alignItems: "center", gap: 16 }}>
+                <span style={{ fontSize: 52 }}>{emo?.emoji}</span>
+                <div>
+                  <h2 style={{ fontSize: 20, fontWeight: 800, color: "#333" }}>{getEmotionLabel(selectedEntry)}</h2>
+                  <p style={{ fontSize: 14, color: "#666" }}>{formatDate(selectedEntry.date)}</p>
+                  <p style={{ fontSize: 13, color: "#888" }}>{selectedEntry.number}번 {selectedEntry.name}</p>
+                </div>
+              </div>
+              <div style={{ padding: "24px", fontSize: 15, lineHeight: 2, color: "#333", whiteSpace: "pre-wrap" }}>{selectedEntry.text}</div>
+              <div style={{ padding: "12px 24px 20px", display: "flex", gap: 10 }}>
+                <button onClick={() => printDiary(selectedEntry)} style={{ padding: "10px 20px", borderRadius: 10, border: "2px solid #26A69A", background: "#fff", color: "#26A69A", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>🖨 인쇄</button>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* CSV export */}
+        {tab === "overview" && entries.length > 0 && (
+          <div style={{ marginTop: 20, textAlign: "center" }}>
+            <button onClick={() => {
+              const csv = ["번호,이름,날짜,감정,내용"];
+              entries.forEach((e) => {
+                csv.push(`${e.number},${e.name},${e.date},${getEmotionLabel(e)},${'"' + (e.text || "").replace(/"/g, '""') + '"'}`);
+              });
+              const blob = new Blob(["\uFEFF" + csv.join("\n")], { type: "text/csv;charset=utf-8;" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url; a.download = `감정일기_${getToday()}.csv`;
+              a.click(); URL.revokeObjectURL(url);
+            }} style={{ padding: "10px 24px", borderRadius: 10, border: "2px solid #78909C", background: "#fff", color: "#546E7A", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+              📥 CSV 내보내기
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════
+// PASSWORD MODAL
+// ══════════════════════════════════════
+function PasswordModal({ onSuccess, onCancel }) {
+  const [pw, setPw] = useState("");
+  const [error, setError] = useState(false);
+  const [shake, setShake] = useState(false);
+
+  function handleSubmit() {
+    if (pw === getTeacherPassword()) { onSuccess(); }
+    else { setError(true); setShake(true); setPw(""); setTimeout(() => setShake(false), 500); }
+  }
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: 16 }}>
+      <div style={{ background: "#fff", borderRadius: 24, padding: "36px 32px 28px", width: "100%", maxWidth: 360, boxShadow: "0 20px 60px rgba(0,0,0,0.15)", textAlign: "center", animation: shake ? "shakeX .4s ease" : "fadeIn .25s ease" }}>
+        <div style={{ fontSize: 48, marginBottom: 12 }}>🔐</div>
+        <h2 style={{ fontSize: 20, fontWeight: 800, color: "#333", marginBottom: 6 }}>교사 모드</h2>
+        <p style={{ fontSize: 14, color: "#888", marginBottom: 24 }}>비밀번호를 입력해주세요</p>
+        <input type="password" value={pw} onChange={(e) => { setPw(e.target.value); setError(false); }}
+          onKeyDown={(e) => { if (e.key === "Enter") handleSubmit(); }}
+          placeholder="비밀번호" autoFocus
+          style={{ width: "100%", padding: "14px 18px", borderRadius: 14, border: error ? "2px solid #EF5350" : "2px solid #E0E0E0", fontSize: 16, outline: "none", textAlign: "center", letterSpacing: 4, transition: "border .2s" }}
+          onFocus={(e) => { if (!error) e.target.style.borderColor = "#26A69A"; }}
+          onBlur={(e) => { if (!error) e.target.style.borderColor = "#E0E0E0"; }} />
+        {error && <p style={{ fontSize: 13, color: "#EF5350", marginTop: 8, fontWeight: 600 }}>비밀번호가 틀렸습니다</p>}
+        <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+          <button onClick={onCancel} style={{ flex: 1, padding: "12px", borderRadius: 12, border: "2px solid #E0E0E0", background: "#fff", color: "#888", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>취소</button>
+          <button onClick={handleSubmit} disabled={!pw.trim()} style={{ flex: 1, padding: "12px", borderRadius: 12, border: "none", background: pw.trim() ? "linear-gradient(135deg, #26A69A, #2bbbad)" : "#ccc", color: "#fff", fontWeight: 700, fontSize: 14, cursor: pw.trim() ? "pointer" : "default" }}>확인</button>
+        </div>
+        <p style={{ fontSize: 11, color: "#bbb", marginTop: 16 }}>기본 비밀번호: 1234 (교사 모드에서 변경 가능)</p>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════
+// MAIN APP
+// ══════════════════════════════════════
+function App() {
+  const [view, setView] = useState("student");
+  const [showPwModal, setShowPwModal] = useState(false);
+
+  return (
+    <>
+      {showPwModal && <PasswordModal onSuccess={() => { setShowPwModal(false); setView("teacher"); }} onCancel={() => setShowPwModal(false)} />}
+      {view === "teacher"
+        ? <TeacherView onBack={() => setView("student")} />
+        : <StudentView onSwitchToTeacher={() => setShowPwModal(true)} />}
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
