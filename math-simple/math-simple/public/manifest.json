@@ -1,0 +1,8 @@
+{
+  "name": "같이 생각하기",
+  "short_name": "같이생각",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#EDF1EE",
+  "theme_color": "#EDF1EE"
+}

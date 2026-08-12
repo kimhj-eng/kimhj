@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>같이 생각하기</title>
+<meta name="theme-color" content="#EDF1EE">
+<link rel="manifest" href="/manifest.json">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="mast-left">
+      <span class="mark" aria-hidden="true"></span>
+      <h1>같이 생각하기</h1>
+    </div>
+    <button id="btnTeacher" class="ghost" type="button" aria-pressed="false">교사 보기</button>
+  </header>
+
+  <!-- 암호 -->
+  <section id="screenGate" class="screen is-on">
+    <p class="lede">문제를 보여 주면, 답 대신 <em>다음 생각</em>을 물어봅니다.</p>
+    <div class="field">
+      <label for="pass">접속 암호</label>
+      <input type="password" id="pass" autocomplete="current-password">
+      <p class="note">암호를 정하지 않았다면 비워 두고 들어오세요.</p>
+    </div>
+    <button id="btnGate" class="solid" type="button">들어가기</button>
+    <p id="gateNote" class="note" role="status"></p>
+  </section>
+
+  <!-- 문제 입력 -->
+  <section id="screenStart" class="screen">
+    <p class="lede">오늘은 어떤 문제를 <em>같이 생각</em>해 볼까?</p>
+
+    <div class="field">
+      <label>학년</label>
+      <div class="chips" id="gradeChips" role="radiogroup" aria-label="학년">
+        <button type="button" class="chip" data-g="1">1</button>
+        <button type="button" class="chip" data-g="2">2</button>
+        <button type="button" class="chip is-on" data-g="3">3</button>
+        <button type="button" class="chip" data-g="4">4</button>
+        <button type="button" class="chip" data-g="5">5</button>
+        <button type="button" class="chip" data-g="6">6</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="photo">문제 사진</label>
+      <label class="drop" for="photo">
+        <input type="file" id="photo" accept="image/*" capture="environment" hidden>
+        <span id="dropLabel">사진 찍기 · 앨범에서 고르기</span>
+      </label>
+      <img id="preview" alt="" hidden>
+    </div>
+
+    <p class="or">또는</p>
+
+    <div class="field">
+      <label for="typed">문제를 직접 적기</label>
+      <textarea id="typed" rows="3" placeholder="사탕 36개를 4명에게 똑같이 나누어 주려고 합니다. 한 명은 몇 개를 받을까요?"></textarea>
+    </div>
+
+    <button id="btnStart" class="solid" type="button">문제 읽기</button>
+    <p id="startNote" class="note" role="status"></p>
+    <button id="btnRecords" class="ghost wide" type="button">지난 기록 보기</button>
+  </section>
+
+  <!-- 문제 확인 -->
+  <section id="screenConfirm" class="screen">
+    <p class="eyebrow">읽은 문제</p>
+    <textarea id="confirmText" rows="5"></textarea>
+    <p class="note">틀린 곳이 있으면 고쳐 주세요.</p>
+    <div class="row">
+      <button id="btnBack" class="ghost" type="button">다시 찍기</button>
+      <button id="btnGo" class="solid" type="button">맞아요, 시작</button>
+    </div>
+  </section>
+
+  <!-- 대화 -->
+  <section id="screenTalk" class="screen">
+    <details class="problem">
+      <summary>문제 다시 보기</summary>
+      <p id="problemBody"></p>
+    </details>
+    <div id="trail" class="trail" aria-live="polite"></div>
+    <div class="composer">
+      <textarea id="say" rows="1" placeholder="생각한 걸 적어 보세요"></textarea>
+      <button id="btnSay" class="solid send" type="button">보내기</button>
+    </div>
+    <button id="btnEnd" class="ghost wide" type="button" hidden>다 풀었어요</button>
+  </section>
+
+  <!-- 마무리 -->
+  <section id="screenDone" class="screen">
+    <p class="eyebrow">오늘의 기록</p>
+    <h2 class="title" id="doneLine"></h2>
+    <div id="log" class="log"></div>
+    <button id="btnAgain" class="solid" type="button">다른 문제 풀기</button>
+  </section>
+
+  <!-- 기록 · 리포트 -->
+  <section id="screenRecords" class="screen">
+    <button id="btnHome" class="ghost" type="button">돌아가기</button>
+
+    <p class="eyebrow" style="margin-top:22px">보호자용</p>
+    <div id="report" class="report"><p>아직 리포트를 만들지 않았습니다.</p></div>
+    <button id="btnMake" class="solid" type="button">이번 주 이야기 만들기</button>
+    <p id="repNote" class="note" role="status"></p>
+
+    <div id="askBox" hidden>
+      <p class="eyebrow" style="margin-top:32px">집에서 해볼 질문</p>
+      <ul class="asks" id="asks"></ul>
+    </div>
+
+    <p class="eyebrow" style="margin-top:32px">푼 문제</p>
+    <div id="list"></div>
+    <button id="btnWipe" class="ghost wide" type="button">기록 전부 지우기</button>
+  </section>
+
+  <!-- 기록 상세 -->
+  <section id="screenDetail" class="screen">
+    <button id="btnBack2" class="ghost" type="button">뒤로</button>
+    <p class="eyebrow" style="margin-top:20px">문제</p>
+    <p id="dProblem" style="font-family:var(--font-display); font-size:17px"></p>
+    <p class="eyebrow" style="margin-top:26px">그날의 대화</p>
+    <div id="dTurns" class="trail"></div>
+  </section>
+
+</div>
+<script src="/app.js"></script>
+</body>
+</html>
